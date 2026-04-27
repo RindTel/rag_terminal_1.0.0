@@ -1,0 +1,33 @@
+# ──────────────────────────────────────────────
+# QwenRAG — Python dependencies
+# ──────────────────────────────────────────────
+# Install with:  pip install -r requirements.txt
+#
+# Python 3.9 or newer is required.
+# ──────────────────────────────────────────────
+
+# ── Web UI ────────────────────────────────────
+streamlit>=1.32.0
+
+# ── PDF parsing ───────────────────────────────
+pymupdf>=1.23.0          # PyMuPDF — fast, reliable PDF text extraction
+
+# ── Embeddings ────────────────────────────────
+sentence-transformers>=2.7.0   # Includes PyTorch CPU; downloads ~90 MB model on first run
+                               # Model: all-MiniLM-L6-v2 (22M params, 384-dim)
+
+# ── Vector search ─────────────────────────────
+faiss-cpu>=1.7.4         # Pure CPU FAISS — no GPU needed
+                         # For GPU machines (optional): faiss-gpu instead
+
+# ── HTTP client (for Ollama) ──────────────────
+requests>=2.31.0
+
+# ── Numerical computing ───────────────────────
+numpy>=1.24.0
+
+# ──────────────────────────────────────────────
+# Optional / for development
+# ──────────────────────────────────────────────
+# watchdog>=3.0.0        # Faster Streamlit hot-reload on file changes
+# python-dotenv>=1.0.0   # If you want to use a .env file for config

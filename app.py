@@ -9,7 +9,13 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
+import config
 from src.ui import render_app
+
+# Streamlit installs no log handler, so without this every logger.warning() in
+# the app is discarded — including NO_RETRIEVAL (answer not grounded in your
+# documents), prompt-budget chunk drops, and embedding truncation.
+config.configure_logging()
 
 st.set_page_config(
     page_title="TERMINAL",

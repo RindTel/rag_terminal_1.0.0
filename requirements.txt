@@ -20,6 +20,12 @@ sentence-transformers>=2.7.0   # Includes PyTorch CPU; downloads ~90 MB model on
 faiss-cpu>=1.7.4         # Pure CPU FAISS — no GPU needed
                          # For GPU machines (optional): faiss-gpu instead
 
+# ── Hybrid retrieval ──────────────────────────
+rank_bm25>=0.2.2         # BM25 keyword arm (fused with vectors via RRF)
+                         # The cross-encoder reranker uses sentence-transformers
+                         # (above) and downloads cross-encoder/ms-marco-MiniLM-L-6-v2
+                         # (~80 MB) on first use. Disable via HYBRID_RETRIEVAL=false.
+
 # ── HTTP client (for Ollama) ──────────────────
 requests>=2.31.0
 
@@ -27,7 +33,9 @@ requests>=2.31.0
 numpy>=1.24.0
 
 # ──────────────────────────────────────────────
-# Optional / for development
+# Development
 # ──────────────────────────────────────────────
+pytest>=8.0.0            # Test suite:  python -m pytest tests/ -v
+
 # watchdog>=3.0.0        # Faster Streamlit hot-reload on file changes
 # python-dotenv>=1.0.0   # If you want to use a .env file for config

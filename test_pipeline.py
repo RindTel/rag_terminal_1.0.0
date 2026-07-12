@@ -11,13 +11,13 @@ Usage:
 import sys
 import os
 import argparse
-import logging
-
-logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+import config
 from src.rag_pipeline import RAGPipeline
+
+config.configure_logging()
 
 
 def check_ollama(pipeline: RAGPipeline):

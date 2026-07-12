@@ -1,0 +1,307 @@
+{
+  "_meta": {
+    "description": "Golden evaluation set for the qwen-rag pipeline. Every expected fact below is verbatim-grounded in eval/corpus/. Do not add a question whose answer is not literally in the corpus.",
+    "corpus_dir": "eval/corpus",
+    "categories": {
+      "easy_factual": "Single fact, stated plainly in one place.",
+      "precise_lookup": "Exact tokens: error codes, numbers, acronyms, proper nouns, file paths. These are where dense-only retrieval is weakest.",
+      "multi_hop": "Answer requires combining facts from two or more separate sections.",
+      "follow_up": "Conversational. The question is meaningless without chat_history — tests whether retrieval uses conversation context.",
+      "distractor": "Answer lives in the OTHER document. Tests that retrieval routes to the right source.",
+      "unanswerable": "Answer is NOT in the corpus. The system must abstain. Tests hallucination resistance."
+    },
+    "fields": {
+      "key_facts": "Literal strings that a correct answer / correct retrieved context must contain. Matched case-insensitively.",
+      "expected_source_docs": "Which document(s) the evidence must come from. Empty for unanswerable.",
+      "chat_history": "Prior turns, for follow_up questions only."
+    }
+  },
+
+  "questions": [
+    {
+      "id": "EF-01",
+      "category": "easy_factual",
+      "query": "What is FundForge?",
+      "expected_answer": "A full-stack crowdfunding platform where creators launch campaigns, donors donate, and admins moderate.",
+      "key_facts": ["crowdfunding"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "EF-02",
+      "category": "easy_factual",
+      "query": "Which database does FundForge use?",
+      "expected_answer": "PostgreSQL, accessed exclusively through the Prisma ORM.",
+      "key_facts": ["PostgreSQL"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "EF-03",
+      "category": "easy_factual",
+      "query": "What are the three user roles in the system?",
+      "expected_answer": "ADMIN, CREATOR, and DONOR.",
+      "key_facts": ["ADMIN", "CREATOR", "DONOR"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "EF-04",
+      "category": "easy_factual",
+      "query": "How are passwords stored?",
+      "expected_answer": "Hashed with bcrypt, never stored in plaintext.",
+      "key_facts": ["bcrypt"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "EF-05",
+      "category": "easy_factual",
+      "query": "What build tool does the frontend use?",
+      "expected_answer": "Vite, which provides native ES modules and hot module replacement in development.",
+      "key_facts": ["Vite"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "EF-06",
+      "category": "easy_factual",
+      "query": "Which library is used to render charts on the dashboard?",
+      "expected_answer": "Recharts, an SVG-based chart library built for React.",
+      "key_facts": ["Recharts"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+
+    {
+      "id": "PL-01",
+      "category": "precise_lookup",
+      "query": "What HTTP status code is returned when a user is logged in but has the wrong role?",
+      "expected_answer": "403 Forbidden.",
+      "key_facts": ["403"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "PL-02",
+      "category": "precise_lookup",
+      "query": "What status code is returned when someone registers with an email that already exists?",
+      "expected_answer": "409 Conflict.",
+      "key_facts": ["409"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "PL-03",
+      "category": "precise_lookup",
+      "query": "Which Prisma error code maps to a 409 Conflict response?",
+      "expected_answer": "P2002, the unique constraint violation error.",
+      "key_facts": ["P2002"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "PL-04",
+      "category": "precise_lookup",
+      "query": "Which Prisma error code maps to a 404 Not Found?",
+      "expected_answer": "P2025.",
+      "key_facts": ["P2025"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "PL-05",
+      "category": "precise_lookup",
+      "query": "What status code does the API return when the rate limit is exceeded?",
+      "expected_answer": "429 Too Many Requests.",
+      "key_facts": ["429"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "PL-06",
+      "category": "precise_lookup",
+      "query": "How many bcrypt salt rounds does the backend use?",
+      "expected_answer": "12 rounds, configured via BCRYPT_SALT_ROUNDS.",
+      "key_facts": ["12"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "PL-07",
+      "category": "precise_lookup",
+      "query": "What is the exact rate limit applied to the API routes?",
+      "expected_answer": "100 requests per 15 minutes per IP address.",
+      "key_facts": ["100", "15 minutes"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "PL-08",
+      "category": "precise_lookup",
+      "query": "How long is the access token valid, and how long is the refresh token valid?",
+      "expected_answer": "Access token: 15 minutes. Refresh token: 7 days.",
+      "key_facts": ["15 min", "7 days"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "PL-09",
+      "category": "precise_lookup",
+      "query": "What does RBAC stand for?",
+      "expected_answer": "Role-Based Access Control.",
+      "key_facts": ["Role-Based Access Control"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "PL-10",
+      "category": "precise_lookup",
+      "query": "What does DTO stand for and what is it used for here?",
+      "expected_answer": "Data Transfer Object — defines the shape of data crossing the API boundary; implemented as Zod schemas.",
+      "key_facts": ["Data Transfer Object", "Zod"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "PL-11",
+      "category": "precise_lookup",
+      "query": "What does ORM stand for?",
+      "expected_answer": "Object-Relational Mapper.",
+      "key_facts": ["Object-Relational Mapper"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "PL-12",
+      "category": "precise_lookup",
+      "query": "What base URL does the frontend Axios instance point at?",
+      "expected_answer": "http://localhost:4000/api/v1",
+      "key_facts": ["localhost:4000/api/v1"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "PL-13",
+      "category": "precise_lookup",
+      "query": "What is the maximum page size allowed on paginated list endpoints?",
+      "expected_answer": "100 — it prevents 'give me all 10,000 records' attacks.",
+      "key_facts": ["100"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "PL-14",
+      "category": "precise_lookup",
+      "query": "Which file exports the Prisma client singleton?",
+      "expected_answer": "backend/src/config/database.ts",
+      "key_facts": ["config/database.ts"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "PL-15",
+      "category": "precise_lookup",
+      "query": "What is the Axios request timeout?",
+      "expected_answer": "15 seconds.",
+      "key_facts": ["15 second"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+
+    {
+      "id": "MH-01",
+      "category": "multi_hop",
+      "query": "An access token expires mid-session. Walk me through exactly what happens so the user never sees a login screen.",
+      "expected_answer": "The API returns 401. The Axios response interceptor catches it, calls POST /auth/refresh with the refresh token. The backend verifies the refresh token's signature and checks the DB, then revokes the old refresh token and issues a new one (rotation). Axios saves the new tokens and retries the original request. The user notices nothing.",
+      "key_facts": ["401", "/auth/refresh", "rotation", "retries"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "MH-02",
+      "category": "multi_hop",
+      "query": "A user has the CREATOR role and tries to edit a campaign belonging to a different creator. What happens, and why isn't the role by itself enough?",
+      "expected_answer": "Having the CREATOR role is not sufficient — an ownership check in the service layer verifies creatorId matches the requesting userId. If the user is neither the owner nor an ADMIN, it throws ApiError.forbidden(), producing a 403.",
+      "key_facts": ["ownership", "403"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "MH-03",
+      "category": "multi_hop",
+      "query": "Why must creating a donation run inside a database transaction, and which records get written or updated?",
+      "expected_answer": "Because it touches multiple tables and a partial failure would corrupt data. In one transaction: create donation, create payment, update campaign raisedAmount, update campaign donationsCount, update donor totalDonated, update reward claimsCount. Either all succeed or none do.",
+      "key_facts": ["transaction", "raisedAmount", "donationsCount", "totalDonated", "claimsCount"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "MH-04",
+      "category": "multi_hop",
+      "query": "Someone steals a refresh token and tries to use it after the real user already used it. What does the system do?",
+      "expected_answer": "Refresh token rotation means each token is invalidated on use. Reuse of an already-used token is detected as token reuse, and the system revokes ALL of that user's tokens, forcing a full re-login.",
+      "key_facts": ["reuse", "revoke"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+
+    {
+      "id": "FU-01",
+      "category": "follow_up",
+      "query": "What should NOT be stored in it?",
+      "chat_history": [
+        {"role": "user", "content": "What is Zustand used for in this project?"},
+        {"role": "assistant", "content": "Zustand is the client state management library. It holds global auth state — the current user object, the access token, the refresh token, and an isAuthenticated boolean — so any component can read it."}
+      ],
+      "expected_answer": "Server data (campaigns, donations) must not go in Zustand — that is React Query's job. Component-local state (like whether a modal is open) also must not — that is useState's job.",
+      "key_facts": ["React Query", "useState"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "FU-02",
+      "category": "follow_up",
+      "query": "Which of those layers is the only one allowed to touch the database?",
+      "chat_history": [
+        {"role": "user", "content": "Explain the layered architecture on the backend."},
+        {"role": "assistant", "content": "There is a strict 4-layer architecture: Routes map HTTP verbs to controllers, Controllers handle HTTP concerns only, Services hold business logic, and Repositories handle data access. Each layer talks only to the one directly below it."}
+      ],
+      "expected_answer": "Layer 4, the Repositories. Database queries must never appear outside a repository — writing prisma.something in a service is explicitly banned.",
+      "key_facts": ["repositor"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "FU-03",
+      "category": "follow_up",
+      "query": "What is it built with?",
+      "chat_history": [
+        {"role": "user", "content": "Which library renders the dashboard charts?"},
+        {"role": "assistant", "content": "Recharts — a chart library made for React, used on the dashboard analytics pages."}
+      ],
+      "expected_answer": "Recharts is built with SVG.",
+      "key_facts": ["SVG"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+    {
+      "id": "FU-04",
+      "category": "follow_up",
+      "query": "What happens when you exceed it?",
+      "chat_history": [
+        {"role": "user", "content": "Does the API have a rate limiter?"},
+        {"role": "assistant", "content": "Yes — express-rate-limit caps requests per IP within a time window to prevent brute-force and abuse."}
+      ],
+      "expected_answer": "Exceeding the rate limit returns 429 Too Many Requests.",
+      "key_facts": ["429"],
+      "expected_source_docs": ["ARCHITECTURE.txt"]
+    },
+
+    {
+      "id": "DS-01",
+      "category": "distractor",
+      "query": "What height did the Lunaria Nova plant reach?",
+      "expected_answer": "23 cm.",
+      "key_facts": ["23 cm"],
+      "expected_source_docs": ["notes.txt"]
+    },
+    {
+      "id": "DS-02",
+      "category": "distractor",
+      "query": "What kind of music makes the plant stop growing, and how fast?",
+      "expected_answer": "Heavy metal music — it stops growing within 48 hours.",
+      "key_facts": ["heavy metal", "48 hours"],
+      "expected_source_docs": ["notes.txt"]
+    },
+
+    {
+      "id": "UA-01",
+      "category": "unanswerable",
+      "query": "What is FundForge's Kubernetes deployment strategy and which cloud provider hosts it?",
+      "expected_answer": "ABSTAIN — the corpus says nothing about Kubernetes, deployment, or hosting.",
+      "key_facts": [],
+      "expected_source_docs": []
+    },
+    {
+      "id": "UA-02",
+      "category": "unanswerable",
+      "query": "How much does a FundForge premium subscription cost per month?",
+      "expected_answer": "ABSTAIN — the corpus contains no pricing information.",
+      "key_facts": [],
+      "expected_source_docs": []
+    }
+  ]
+}

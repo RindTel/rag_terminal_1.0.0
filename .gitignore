@@ -35,3 +35,10 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Eval harness scratch index (rebuilt on every run)
+eval/.index/
+eval/report.md
+
+# Generated per-run eval reports (regenerable via run_eval.py)
+eval/report_*.md

@@ -474,6 +474,17 @@ div[data-baseweb="slider"] > div > div    { background: var(--border-crt) !impor
 h1, h2, h3, h4 { font-family: var(--font-display) !important; color: var(--phosphor) !important; text-shadow: 0 0 8px rgba(0,255,0,0.3) !important; letter-spacing: 0.05em !important; }
 code, pre { font-family: var(--font-mono) !important; background: var(--bg-inset) !important; color: var(--phosphor) !important; border: 1px solid var(--border-crt) !important; border-radius: 0 !important; }
 
+/* st.code blocks — a single CRT-framed box. Token colours are inline on child
+   <span>s (react-syntax-highlighter), so highlighting survives the rules above. */
+[data-testid="stCode"] { border-radius: 0 !important; margin: 6px 0 !important; }
+[data-testid="stCode"] pre {
+    background: var(--bg-inset) !important;
+    border: 1px solid var(--phosphor-dim) !important;
+    border-radius: 0 !important;
+}
+[data-testid="stCode"] code { background: transparent !important; border: none !important; }
+[data-testid="stCode"] button { color: var(--phosphor) !important; }   /* copy button */
+
 * { scrollbar-width: thin; scrollbar-color: var(--border-crt) var(--bg); }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }

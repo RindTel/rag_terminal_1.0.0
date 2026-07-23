@@ -6,6 +6,7 @@ Green phosphor on black. Scanlines. The whole deal.
 """
 
 import os
+import re
 import html
 import streamlit as st
 
@@ -77,6 +78,66 @@ def _error_bubble_html(message: str) -> str:
         f'<div class="bubble-assistant bubble-error">&#10006; ERROR: {_esc(message)}</div>'
         '</div>'
     )
+
+
+# Answer rendering: prose in a bubble, fenced code in its own st.code box.
+
+_CODE_FENCE = re.compile(r"```([\w+.#-]*)[ \t]*\n(.*?)```", re.S)
+
+
+def _split_code_segments(text: str):
+    """
+    Split an answer into ordered segments:
+      ("text", str)          — prose
+      ("code", lang, code)   — a fenced ``` code block
+    Only fenced blocks become code; inline `code` stays in the prose.
+    """
+    segments = []
+    pos = 0
+    for m in _CODE_FENCE.finditer(text):
+        if m.start() > pos:
+            segments.append(("text", text[pos:m.start()]))
+        segments.append(("code", m.group(1).strip(), m.group(2)))
+        pos = m.end()
+    if pos < len(text):
+        segments.append(("text", text[pos:]))
+    return segments or [("text", text)]
+
+
+def _render_answer(content: str, fadein: bool):
+    """
+    Render an assistant answer: prose segments in the CRT bubble, and each fenced
+    code block in its own st.code box (syntax-highlighted + one-click copy button).
+    The '// OUTPUT' label is emitted once, before the first segment.
+    """
+    fade = " msg-fadein" if fadein else ""
+    label_shown = False
+    for seg in _split_code_segments(content):
+        if seg[0] == "text":
+            body = seg[1].strip()
+            if not body:
+                continue
+            role = "" if label_shown else '<div class="msg-role-label">// OUTPUT</div>'
+            safe = _esc(body).replace("\n", "<br>")
+            st.markdown(
+                f'<div class="msg-assistant{fade}">{role}'
+                f'<div class="bubble-assistant">{safe}</div></div>',
+                unsafe_allow_html=True,
+            )
+            label_shown = True
+        else:  # ("code", lang, code)
+            if not label_shown:
+                st.markdown('<div class="msg-role-label">// OUTPUT</div>', unsafe_allow_html=True)
+                label_shown = True
+            lang, code = seg[1], seg[2]
+            st.code(code.rstrip("\n"), language=(lang or None))
+
+    if not label_shown:  # answer was empty / whitespace only
+        st.markdown(
+            f'<div class="msg-assistant{fade}"><div class="msg-role-label">// OUTPUT</div>'
+            f'<div class="bubble-assistant"></div></div>',
+            unsafe_allow_html=True,
+        )
 
 
 def _source_block_html(i: int, src: dict) -> str:
@@ -360,11 +421,9 @@ def _render_chat(pipeline: RAGPipeline):
                 st.rerun()
             continue
 
-        # Done: fade the newest answer in as it replaces the indicator.
-        st.markdown(
-            _assistant_bubble_html(msg["content"], fadein=(i == len(history) - 1)),
-            unsafe_allow_html=True,
-        )
+        # Done: prose in the bubble, fenced code in its own copyable st.code box.
+        # Fade the newest answer in as it replaces the loading indicator.
+        _render_answer(msg["content"], fadein=(i == len(history) - 1))
 
         # General-knowledge answer: label it clearly. Takes precedence over the
         # plain no-retrieval pill (they'd be redundant).

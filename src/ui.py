@@ -36,14 +36,45 @@ def _user_bubble_html(content: str) -> str:
     )
 
 
-def _assistant_bubble_html(content: str) -> str:
+def _assistant_bubble_html(content: str, fadein: bool = False) -> str:
     # Escape first, THEN turn newlines into <br> — so the line breaks are real
     # formatting while the content itself can never inject markup.
     safe = _esc(content).replace("\n", "<br>")
+    cls = "msg-assistant msg-fadein" if fadein else "msg-assistant"
+    return (
+        f'<div class="{cls}">'
+        '<div class="msg-role-label">// OUTPUT</div>'
+        f'<div class="bubble-assistant">{safe}</div>'
+        '</div>'
+    )
+
+
+def _querying_indicator_html() -> str:
+    """
+    Reusable in-flight loading indicator. Shaped like an assistant bubble (same
+    '// OUTPUT' label + bubble box) so it sits exactly where the answer will land —
+    when the answer replaces it there's no position/layout jump, just a fade-in.
+    Animation is pure CSS, so it keeps moving while the server blocks on generation.
+    """
     return (
         '<div class="msg-assistant">'
         '<div class="msg-role-label">// OUTPUT</div>'
-        f'<div class="bubble-assistant">{safe}</div>'
+        '<div class="bubble-assistant">'
+        '<span class="querying-label">&#9656; QUERYING VECTOR INDEX'
+        '<span class="querying-dots"><span>.</span><span>.</span><span>.</span></span>'
+        '</span>'
+        '<div class="querying-skeleton"></div>'
+        '<div class="querying-skeleton short"></div>'
+        '</div></div>'
+    )
+
+
+def _error_bubble_html(message: str) -> str:
+    """Inline error in the answer slot (paired with a RETRY button)."""
+    return (
+        '<div class="msg-assistant">'
+        '<div class="msg-role-label">// OUTPUT</div>'
+        f'<div class="bubble-assistant bubble-error">&#10006; ERROR: {_esc(message)}</div>'
         '</div>'
     )
 
@@ -297,7 +328,7 @@ def _render_empty_state(pipeline: RAGPipeline):
         for i, (label, query) in enumerate(_SAMPLE_QUERIES):
             with grid[i % 2]:
                 if st.button(label, key=f"ex_{i}", use_container_width=True):
-                    _handle_query(query, pipeline)
+                    _submit_question(query)
                     st.rerun()
 
 
@@ -308,83 +339,127 @@ def _render_chat(pipeline: RAGPipeline):
         _render_empty_state(pipeline)
         return
 
-    for msg in history:
+    for i, msg in enumerate(history):
         if msg["role"] == "user":
             st.markdown(_user_bubble_html(msg["content"]), unsafe_allow_html=True)
-        else:
-            st.markdown(_assistant_bubble_html(msg["content"]), unsafe_allow_html=True)
+            continue
 
-            # General-knowledge answer: label it clearly. Takes precedence over the
-            # plain no-retrieval pill (they'd be redundant).
-            if msg.get("general_fallback"):
-                st.markdown(
-                    '<span class="crt-pill crt-pill-warn">'
-                    '[i] GENERAL KNOWLEDGE &mdash; NOT FROM YOUR DOCUMENTS'
-                    '</span>',
-                    unsafe_allow_html=True,
-                )
-            elif msg.get("no_retrieval"):
-                st.markdown(
-                    '<span class="crt-pill crt-pill-warn">'
-                    '[!!] NO RETRIEVAL &mdash; NOT GROUNDED IN YOUR DOCUMENTS'
-                    '</span>',
-                    unsafe_allow_html=True,
-                )
+        status = msg.get("status", "done")
 
-            # The context window filled up and the lowest-ranked chunks were cut.
-            # Say so — a silently shortened context is what caused this bug class.
-            if msg.get("budget_dropped"):
-                st.markdown(
-                    f'<span class="crt-pill crt-pill-warn">'
-                    f'[!!] CONTEXT BUDGET &mdash; USED {msg["budget_total"] - msg["budget_dropped"]}'
-                    f'/{msg["budget_total"]} CHUNKS ({msg["budget_dropped"]} LOWEST-RANKED DROPPED)'
-                    f'</span>',
-                    unsafe_allow_html=True,
-                )
+        # In-flight: animated indicator in the answer slot.
+        if status == "pending":
+            st.markdown(_querying_indicator_html(), unsafe_allow_html=True)
+            continue
 
-            sources = msg.get("sources", [])
-            if sources:
-                with st.expander(f"[SRC] {len(sources)} REFERENCE CHUNK(S)", expanded=False):
-                    for i, src in enumerate(sources, 1):
-                        st.markdown(_source_block_html(i, src), unsafe_allow_html=True)
+        # Failed: inline error + retry (flips the message back to pending).
+        if status == "error":
+            st.markdown(_error_bubble_html(msg.get("error", "Something went wrong.")),
+                        unsafe_allow_html=True)
+            if st.button("RETRY", key=f"retry_{i}"):
+                msg["status"] = "pending"
+                st.rerun()
+            continue
 
-# Query handler
+        # Done: fade the newest answer in as it replaces the indicator.
+        st.markdown(
+            _assistant_bubble_html(msg["content"], fadein=(i == len(history) - 1)),
+            unsafe_allow_html=True,
+        )
 
-def _handle_query(question: str, pipeline: RAGPipeline):
+        # General-knowledge answer: label it clearly. Takes precedence over the
+        # plain no-retrieval pill (they'd be redundant).
+        if msg.get("general_fallback"):
+            st.markdown(
+                '<span class="crt-pill crt-pill-warn">'
+                '[i] GENERAL KNOWLEDGE &mdash; NOT FROM YOUR DOCUMENTS'
+                '</span>',
+                unsafe_allow_html=True,
+            )
+        elif msg.get("no_retrieval"):
+            st.markdown(
+                '<span class="crt-pill crt-pill-warn">'
+                '[!!] NO RETRIEVAL &mdash; NOT GROUNDED IN YOUR DOCUMENTS'
+                '</span>',
+                unsafe_allow_html=True,
+            )
+
+        # The context window filled up and the lowest-ranked chunks were cut.
+        # Say so — a silently shortened context is what caused this bug class.
+        if msg.get("budget_dropped"):
+            st.markdown(
+                f'<span class="crt-pill crt-pill-warn">'
+                f'[!!] CONTEXT BUDGET &mdash; USED {msg["budget_total"] - msg["budget_dropped"]}'
+                f'/{msg["budget_total"]} CHUNKS ({msg["budget_dropped"]} LOWEST-RANKED DROPPED)'
+                f'</span>',
+                unsafe_allow_html=True,
+            )
+
+        sources = msg.get("sources", [])
+        if sources:
+            with st.expander(f"[SRC] {len(sources)} REFERENCE CHUNK(S)", expanded=False):
+                for j, src in enumerate(sources, 1):
+                    st.markdown(_source_block_html(j, src), unsafe_allow_html=True)
+
+# Query handling — submit (render first) then process (generate)
+
+def _submit_question(question: str):
+    """
+    Append the user turn plus a PENDING assistant placeholder, so the next rerun
+    renders the question + the loading indicator immediately. The answer is filled
+    in afterwards by _process_pending. This is what masks the generation latency.
+    """
+    st.session_state["chat_history"].append({"role": "user", "content": question})
     st.session_state["chat_history"].append({
-        "role": "user", "content": question, "sources": [],
+        "role": "assistant", "status": "pending", "question": question, "content": "",
     })
 
-    status = pipeline.get_llm_status()
-    if not status["running"]:
-        ans = "ERR: OLLAMA NOT RUNNING. EXECUTE >> ollama serve"
-        st.session_state["chat_history"].append({"role":"assistant","content":ans,"sources":[]})
-        return
-    if not status["model_ready"]:
-        ans = f"ERR: MODEL '{status['model']}' NOT LOADED.\nEXECUTE >> ollama pull {status['model']}"
-        st.session_state["chat_history"].append({"role":"assistant","content":ans,"sources":[]})
+
+def _process_pending(pipeline: RAGPipeline):
+    """
+    Generate the answer for the first PENDING assistant message, flip it to 'done'
+    (or 'error'), then rerun so the indicator is swapped for the result. Runs at the
+    end of render_app, AFTER the pending indicator has already rendered.
+    """
+    history = st.session_state["chat_history"]
+    idx = next(
+        (i for i, m in enumerate(history)
+         if m["role"] == "assistant" and m.get("status") == "pending"),
+        None,
+    )
+    if idx is None:
         return
 
-    with st.spinner("QUERYING VECTOR INDEX... GENERATING RESPONSE..."):
-        history_for_llm = [
-            {"role": m["role"], "content": m["content"]}
-            for m in st.session_state["chat_history"][:-1]
-        ]
-        # Non-streaming: query() may make a second (fallback) call after inspecting
-        # the grounded answer, which a token stream can't express. The UI already
-        # buffered the stream under this spinner, so there is no UX change.
-        result = pipeline.query(question=question, chat_history=history_for_llm, stream=False)
+    msg = history[idx]
+    llm = pipeline.get_llm_status()
+    if not llm["running"]:
+        msg.update(status="error", error="Ollama is not running. Start it with:  ollama serve")
+        st.rerun()
+    if not llm["model_ready"]:
+        msg.update(status="error",
+                   error=f"Model '{llm['model']}' is not loaded. Run:  ollama pull {llm['model']}")
+        st.rerun()
 
-    build = pipeline.last_prompt_build()
-    st.session_state["chat_history"].append({
-        "role": "assistant",
-        "content": result.answer,
-        "sources": result.sources,
-        "no_retrieval": result.no_retrieval,
-        "general_fallback": result.general_fallback,
-        "budget_dropped": len(build.dropped_chunks) if build else 0,
-        "budget_total": (len(build.used_chunks) + len(build.dropped_chunks)) if build else 0,
-    })
+    history_for_llm = [
+        {"role": m["role"], "content": m["content"]}
+        for m in history[:idx] if m.get("content")
+    ]
+    try:
+        result = pipeline.query(
+            question=msg["question"], chat_history=history_for_llm, stream=False,
+        )
+        build = pipeline.last_prompt_build()
+        msg.update(
+            status="done",
+            content=result.answer,
+            sources=result.sources,
+            no_retrieval=result.no_retrieval,
+            general_fallback=result.general_fallback,
+            budget_dropped=len(build.dropped_chunks) if build else 0,
+            budget_total=(len(build.used_chunks) + len(build.dropped_chunks)) if build else 0,
+        )
+    except Exception as e:  # transport/timeout/backend failure → inline error + retry
+        msg.update(status="error", error=str(e) or "Generation failed. Please retry.")
+    st.rerun()
 
 # Main render
 
@@ -410,5 +485,11 @@ def render_app():
 
     prompt = st.chat_input("C:\\QUERY>  type a question and press ENTER")
     if prompt and prompt.strip():
-        _handle_query(prompt.strip(), pipeline)
+        # Show the question + loading indicator NOW; the answer is generated on the
+        # next run by _process_pending below.
+        _submit_question(prompt.strip())
         st.rerun()
+
+    # After rendering, generate any pending answer (blocks while the already-rendered
+    # indicator animates), then reruns to swap in the result / error.
+    _process_pending(pipeline)

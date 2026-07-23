@@ -88,6 +88,48 @@ html, body, [class*="css"] {
     to   { opacity: 1; transform: scaleY(1);    filter: brightness(1); }
 }
 
+/* ── Loading indicator + answer transition ── */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes dot-blink { 0%, 100% { opacity: 0.15; } 50% { opacity: 1; } }
+@keyframes pulse-dim { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+@keyframes shimmer   { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* Fade the newest answer in when it replaces the loading indicator. */
+.msg-fadein { animation: fadeIn 0.28s ease-out; }
+
+.querying-label {
+    color: var(--phosphor);
+    font-family: var(--font-mono);
+    font-size: 0.84rem;
+    letter-spacing: 0.08em;
+    animation: pulse-dim 1.6s ease-in-out infinite;
+    text-shadow: 0 0 6px rgba(0,255,0,0.25);
+}
+.querying-dots span { animation: dot-blink 1.2s infinite; }
+.querying-dots span:nth-child(2) { animation-delay: 0.2s; }
+.querying-dots span:nth-child(3) { animation-delay: 0.4s; }
+.querying-skeleton {
+    height: 9px;
+    margin-top: 12px;
+    background: linear-gradient(90deg,
+        var(--phosphor-dark) 25%, var(--phosphor-dim) 50%, var(--phosphor-dark) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s linear infinite;
+    opacity: 0.7;
+}
+.querying-skeleton.short { width: 55%; }
+
+/* Error answer bubble + retry. */
+.bubble-error {
+    border-color: #7a0000 !important;
+    border-left: 3px solid var(--red-crt) !important;
+    color: var(--red-crt) !important;
+    text-shadow: 0 0 4px rgba(255,51,51,0.35) !important;
+}
+
 .main .block-container { animation: flicker 8s infinite; }
 
 /* ── Sidebar ── */

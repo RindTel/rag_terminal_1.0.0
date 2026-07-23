@@ -239,21 +239,64 @@ def _handle_uploads(uploaded_files, pipeline: RAGPipeline):
 
 # Chat rendering
 
-def _render_chat():
+# Sample queries shown in the empty state: (compact button label, full query sent).
+_SAMPLE_QUERIES = [
+    ("▸ SUMMARISE",       "Summarise the key points of this document."),
+    ("▸ KEY FINDINGS",    "What are the main conclusions or findings?"),
+    ("▸ NUMBERS & DATES", "List any important numbers or dates mentioned."),
+    ("▸ MAIN PROBLEM",    "What problem does this document address?"),
+]
+
+
+def _render_empty_state(pipeline: RAGPipeline):
+    """Centered middle-of-screen state: doc hints, or compact sample-query boxes."""
+    file_list = pipeline.get_uploaded_files()
+
+    if not file_list:
+        st.markdown(
+            '<div class="crt-empty" style="padding:12vh 20px 24px;">'
+            '<span class="crt-empty-art">█▓▒░</span>'
+            '<div class="crt-empty-text">AWAITING DOCUMENTS<span class="blink">_</span><br><br>'
+            '<span style="color:#1a4d1a; font-size:0.72rem;">'
+            'LOAD PDF / TXT VIA THE SIDEBAR &gt; THEN ASK BELOW</span></div></div>',
+            unsafe_allow_html=True,
+        )
+        return
+
+    if pipeline.chunk_count() == 0:
+        st.markdown(
+            '<div class="crt-empty" style="padding:12vh 20px 24px;">'
+            '<span class="crt-empty-art" style="color:#7a5500;">▓▒░</span>'
+            '<div class="crt-empty-text" style="color:#7a5500;">FILES DETECTED — INDEX EMPTY'
+            '<span class="blink">_</span><br><br><span style="font-size:0.72rem;">'
+            'CLICK &gt;&gt; INDEX FILES IN THE SIDEBAR</span></div></div>',
+            unsafe_allow_html=True,
+        )
+        return
+
+    # Indexed and ready — compact, centered sample-query boxes.
+    st.markdown(
+        '<div style="text-align:center; padding:9vh 0 14px;">'
+        '<span class="crt-empty-art" style="font-size:3rem;">▚▞▚</span>'
+        '<div class="crt-empty-text" style="margin-top:6px;">READY — PICK A SAMPLE OR TYPE BELOW'
+        '<span class="blink">_</span></div></div>',
+        unsafe_allow_html=True,
+    )
+    _, mid, _ = st.columns([1, 2, 1])
+    with mid:
+        grid = st.columns(2)
+        for i, (label, query) in enumerate(_SAMPLE_QUERIES):
+            with grid[i % 2]:
+                if st.button(label, key=f"ex_{i}", use_container_width=True):
+                    _handle_query(query, pipeline)
+                    st.rerun()
+
+
+def _render_chat(pipeline: RAGPipeline):
     history = st.session_state["chat_history"]
 
     if not history:
-        st.markdown("""
-        <div class="crt-empty">
-          <span class="crt-empty-art">█▓▒░</span>
-          <div class="crt-empty-text">
-            AWAITING INPUT...<span class="blink">_</span><br><br>
-            <span style="color:#1a4d1a; font-size:0.72rem;">
-            LOAD DOCUMENTS VIA SIDEBAR &gt; ASK QUESTIONS BELOW
-            </span>
-          </div>
-        </div>
-        """, unsafe_allow_html=True)
+        _render_empty_state(pipeline)
         return
 
     for msg in history:
@@ -335,65 +378,17 @@ def render_app():
     <div class="crt-header">
       <div class="crt-title">INTELLIGENCE TERMINAL</div>
       <div class="crt-subtitle">
-        LOCAL RAG SYSTEM &nbsp;|&nbsp; QWEN 2.5 7B &nbsp;|&nbsp; FAISS VECTOR SEARCH
+        LOCAL RAG SYSTEM &nbsp;|&nbsp; QWEN 2.5 &nbsp;|&nbsp; FAISS VECTOR SEARCH
         &nbsp;<span class="cursor">_</span>
       </div>
     </div>
     """, unsafe_allow_html=True)
 
-    file_list = pipeline.get_uploaded_files()
-    if not file_list:
-        st.markdown("""
-        <div style="font-family:'Share Tech Mono',monospace; font-size:0.78rem;
-                    color:#1a7a1a; border:1px solid #1a4d1a; background:#040804;
-                    padding:12px 16px; margin-bottom:20px; line-height:1.9;">
-          <span style="color:#33ff33;">[BOOT]</span> SYSTEM READY<br>
-          <span style="color:#1a4d1a;">[INFO]</span> NO DOCUMENTS LOADED IN MEMORY<br>
-          <span style="color:#1a4d1a;">[INFO]</span> USE SIDEBAR TO UPLOAD PDF OR TXT FILES<br>
-          <span style="color:#1a4d1a;">[INFO]</span> THEN CLICK <span style="color:#33ff33;">&gt;&gt; INDEX FILES</span> TO BUILD SEARCH INDEX<br>
-          <span style="color:#1a4d1a;">[WAIT]</span> AWAITING DOCUMENT INPUT...<span style="animation:cursor-blink 1s step-end infinite; display:inline-block;">_</span>
-        </div>
-        """, unsafe_allow_html=True)
-    elif pipeline.chunk_count() == 0:
-        st.markdown("""
-        <div style="font-family:'Share Tech Mono',monospace; font-size:0.78rem;
-                    color:#7a5500; border:1px solid #7a5500; background:#040804;
-                    padding:10px 14px; margin-bottom:20px;">
-          [WARN] FILES DETECTED BUT INDEX IS EMPTY — CLICK &gt;&gt; INDEX FILES
-        </div>
-        """, unsafe_allow_html=True)
+    # Messages (or the centered empty state) fill the space between the header and
+    # the input, which st.chat_input pins to the bottom of the screen.
+    _render_chat(pipeline)
 
-    _render_chat()
-
-    st.write("")
-    with st.form(key="input_form", clear_on_submit=True):
-        col_q, col_btn = st.columns([5, 1])
-        with col_q:
-            # Label collapsed (the prompt lives in the placeholder) so the SEND
-            # button lines up with the input box instead of the label row.
-            question = st.text_input(
-                "C:\\QUERY>",
-                placeholder="C:\\QUERY> enter query and press [SEND] ...",
-                label_visibility="collapsed",
-            )
-        with col_btn:
-            submitted = st.form_submit_button("SEND >>", use_container_width=True, type="primary")
-
-    if submitted and question.strip():
-        _handle_query(question.strip(), pipeline)
+    prompt = st.chat_input("C:\\QUERY>  type a question and press ENTER")
+    if prompt and prompt.strip():
+        _handle_query(prompt.strip(), pipeline)
         st.rerun()
-
-    if not st.session_state["chat_history"] and pipeline.chunk_count() > 0:
-        st.markdown('<div class="crt-label" style="margin-top:20px;">SAMPLE QUERIES</div>', unsafe_allow_html=True)
-        examples = [
-            "Summarise the key points of this document.",
-            "What are the main conclusions or findings?",
-            "List any important numbers or dates mentioned.",
-            "What problem does this document address?",
-        ]
-        cols = st.columns(2)
-        for i, ex in enumerate(examples):
-            with cols[i % 2]:
-                if st.button(f"> {ex}", key=f"ex_{i}", use_container_width=True):
-                    _handle_query(ex, pipeline)
-                    st.rerun()

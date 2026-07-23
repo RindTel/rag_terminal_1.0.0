@@ -356,6 +356,29 @@ div[data-baseweb="slider"] > div > div > div { background: var(--phosphor-dim) !
 div[data-baseweb="slider"] > div > div    { background: var(--border-crt) !important; }
 .stSlider [data-testid="stThumbValue"] { color: var(--phosphor) !important; }
 
+/* Chat input — pinned at the bottom of the screen, CRT themed. */
+[data-testid="stChatInput"] {
+    background: var(--bg) !important;
+    border-top: 1px solid var(--border-crt) !important;
+}
+[data-testid="stChatInput"] > div {
+    background: var(--bg-inset) !important;
+    border: 1px solid var(--border-crt) !important;
+    border-radius: 0 !important;
+}
+[data-testid="stChatInput"] textarea {
+    background: transparent !important;
+    color: var(--phosphor) !important;
+    font-family: var(--font-mono) !important;
+    font-size: 0.9rem !important;
+    caret-color: var(--phosphor) !important;
+}
+[data-testid="stChatInput"] textarea::placeholder { color: var(--phosphor-dim) !important; opacity: .7 !important; }
+[data-testid="stChatInput"] button        { color: var(--phosphor) !important; background: transparent !important; }
+[data-testid="stChatInput"] button:hover  { color: var(--phosphor-glow) !important; }
+/* Keep the last message clear of the fixed input bar. */
+.main .block-container { padding-bottom: 90px !important; }
+
 .stFileUploader {
     background: var(--bg-inset) !important;
     border: 1px dashed var(--border-crt) !important;

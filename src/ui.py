@@ -163,6 +163,15 @@ def _render_sidebar():
         st.session_state["top_k"] = top_k
         pipeline.top_k = top_k
 
+        # When the documents can't answer, fall back to the model's general
+        # knowledge (clearly labelled). Off = strict document-only mode.
+        config.GENERAL_FALLBACK = st.toggle(
+            "GENERAL-KNOWLEDGE FALLBACK",
+            value=config.GENERAL_FALLBACK,
+            help="If the documents don't cover a question, answer from the model's "
+                 "general knowledge instead of refusing — labelled as not-from-your-documents.",
+        )
+
         st.markdown('<div class="crt-label">LOAD DOCUMENTS</div>', unsafe_allow_html=True)
         uploaded = st.file_uploader(
             "drop files",
@@ -305,7 +314,16 @@ def _render_chat(pipeline: RAGPipeline):
         else:
             st.markdown(_assistant_bubble_html(msg["content"]), unsafe_allow_html=True)
 
-            if msg.get("no_retrieval"):
+            # General-knowledge answer: label it clearly. Takes precedence over the
+            # plain no-retrieval pill (they'd be redundant).
+            if msg.get("general_fallback"):
+                st.markdown(
+                    '<span class="crt-pill crt-pill-warn">'
+                    '[i] GENERAL KNOWLEDGE &mdash; NOT FROM YOUR DOCUMENTS'
+                    '</span>',
+                    unsafe_allow_html=True,
+                )
+            elif msg.get("no_retrieval"):
                 st.markdown(
                     '<span class="crt-pill crt-pill-warn">'
                     '[!!] NO RETRIEVAL &mdash; NOT GROUNDED IN YOUR DOCUMENTS'
@@ -352,16 +370,18 @@ def _handle_query(question: str, pipeline: RAGPipeline):
             {"role": m["role"], "content": m["content"]}
             for m in st.session_state["chat_history"][:-1]
         ]
-        stream = pipeline.query(question=question, chat_history=history_for_llm, stream=True)
-        full = "".join(stream)
+        # Non-streaming: query() may make a second (fallback) call after inspecting
+        # the grounded answer, which a token stream can't express. The UI already
+        # buffered the stream under this spinner, so there is no UX change.
+        result = pipeline.query(question=question, chat_history=history_for_llm, stream=False)
 
-    sources = pipeline.get_last_sources()
     build = pipeline.last_prompt_build()
     st.session_state["chat_history"].append({
         "role": "assistant",
-        "content": full,
-        "sources": sources,
-        "no_retrieval": pipeline.last_was_no_retrieval(),
+        "content": result.answer,
+        "sources": result.sources,
+        "no_retrieval": result.no_retrieval,
+        "general_fallback": result.general_fallback,
         "budget_dropped": len(build.dropped_chunks) if build else 0,
         "budget_total": (len(build.used_chunks) + len(build.dropped_chunks)) if build else 0,
     })

@@ -91,8 +91,16 @@ def test_deleting_last_document_is_durable(workspace):
     assert p2.get_indexed_files() == []
     assert p2.retrieve("How tall did the plant grow?") == []
 
-    # And a query must refuse rather than answer from a resurrected index.
-    result = p2.query("How tall did the Lunaria Nova plant grow?", stream=False)
+    # And a query must never answer FROM a resurrected index. Pin strict mode
+    # (GENERAL_FALLBACK off) so this stays deterministic and needs no live LLM —
+    # the general-knowledge fallback is a separate mode tested elsewhere.
+    import config
+    saved = config.GENERAL_FALLBACK
+    config.GENERAL_FALLBACK = False
+    try:
+        result = p2.query("How tall did the Lunaria Nova plant grow?", stream=False)
+    finally:
+        config.GENERAL_FALLBACK = saved
     assert result.no_retrieval is True
     assert result.grounded is False
     assert result.sources == []

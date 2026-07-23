@@ -35,6 +35,11 @@ NO_RELEVANT_CONTEXT_MESSAGE = (
     "your documents. Try rephrasing, or index a document that covers this topic."
 )
 
+# The LLM abstains from a grounded answer using this phrase (SYSTEM_PROMPT rule #2).
+# We control that string, so a substring match is a reliable abstention signal — it
+# triggers the general-knowledge fallback when config.GENERAL_FALLBACK is on.
+_ABSTAIN_MARKER = "couldn't find a clear answer"
+
 # Result dataclass
 
 class RAGResult:
@@ -48,6 +53,7 @@ class RAGResult:
         retrieved_count: int,
         grounded: bool = True,
         no_retrieval: bool = False,
+        general_fallback: bool = False,
     ):
         self.answer          = answer
         self.sources         = sources   # list of chunk metadata dicts
@@ -55,6 +61,7 @@ class RAGResult:
         self.retrieved_count = retrieved_count
         self.grounded        = grounded       # False => not derived from documents
         self.no_retrieval    = no_retrieval   # True  => retrieval returned nothing
+        self.general_fallback = general_fallback  # True => answered from general knowledge
 
     def __repr__(self):
         return (f"<RAGResult query={self.query!r} sources={self.retrieved_count} "
@@ -289,26 +296,24 @@ class RAGPipeline:
         self._last_sources = []
         self._last_no_retrieval = False
         self._last_prompt_build = None
+        self._last_general_fallback = False
 
+        # No grounded answer is possible (empty index or nothing retrieved). Either
+        # fall back to general knowledge (clearly labelled) or refuse.
         if self.vector_store.chunk_count() == 0:
-            self._last_no_retrieval = True
             logger.warning("NO_RETRIEVAL (empty index) query=%r", question)
-            return self._refuse(question, NO_DOCUMENTS_MESSAGE, stream)
+            return self._no_ground(question, NO_DOCUMENTS_MESSAGE, chat_history, stream)
 
         hits = self.retrieve(question, chat_history=chat_history)
         chunks = [chunk for chunk, _ in hits]
         self._last_sources = chunks  # Cache for streaming mode
 
-        # Retrieval found nothing above score_threshold. Do NOT hand the LLM an
-        # empty CONTEXT block — it would answer from parametric memory and the
-        # user would have no way to tell the answer was ungrounded.
         if not chunks:
-            self._last_no_retrieval = True
             logger.warning(
-                "NO_RETRIEVAL (no chunk >= score_threshold=%s) query=%r — skipping generation",
+                "NO_RETRIEVAL (no chunk >= score_threshold=%s) query=%r",
                 self.score_threshold, question,
             )
-            return self._refuse(question, NO_RELEVANT_CONTEXT_MESSAGE, stream)
+            return self._no_ground(question, NO_RELEVANT_CONTEXT_MESSAGE, chat_history, stream)
 
         build = self.llm.assemble(
             question=question,
@@ -322,16 +327,66 @@ class RAGPipeline:
         self._last_sources = build.used_chunks
         self._last_prompt_build = build
 
+        # Streaming path keeps the grounded stream unchanged (abstention→fallback is
+        # only wired through the non-streaming path the UI uses).
         if stream:
             return self.llm.generate_stream(build.prompt)
 
         answer = self.llm.generate(build.prompt)
+
+        # The context was retrieved but didn't actually answer the question. If the
+        # fallback is on, answer from general knowledge instead — clearly labelled.
+        if config.GENERAL_FALLBACK and self._is_abstention(answer):
+            logger.info("Grounded answer abstained — using general-knowledge fallback.")
+            return self._general_answer(question, chat_history)
+
         return RAGResult(
             answer=answer,
             sources=build.used_chunks,
             query=question,
             retrieved_count=len(build.used_chunks),
         )
+
+    @staticmethod
+    def _is_abstention(answer: str) -> bool:
+        """True if a grounded answer is the system prompt's 'no clear answer' refusal."""
+        return _ABSTAIN_MARKER in (answer or "").lower()
+
+    def _general_answer(self, question: str, chat_history, no_retrieval: bool = False):
+        """
+        Non-streaming general-knowledge answer, flagged as ungrounded. `no_retrieval`
+        is True when this replaces an empty/failed retrieval, False when it replaces
+        an abstained grounded answer (retrieval happened, it just didn't answer).
+        """
+        self._last_general_fallback = True
+        self._last_sources = []
+        answer = self.llm.generate_general(question, chat_history)
+        return RAGResult(
+            answer=answer,
+            sources=[],
+            query=question,
+            retrieved_count=0,
+            grounded=False,
+            no_retrieval=no_retrieval,
+            general_fallback=True,
+        )
+
+    def _no_ground(self, question: str, refusal: str, chat_history, stream: bool):
+        """
+        Reached when no grounded answer is possible. With GENERAL_FALLBACK on,
+        answer from general knowledge (labelled); otherwise refuse as before.
+        """
+        self._last_no_retrieval = True
+        if config.GENERAL_FALLBACK:
+            if stream:
+                self._last_general_fallback = True
+                self._last_sources = []
+                from .llm_client import GENERAL_SYSTEM_PROMPT
+                hist = self.llm._format_history(chat_history)
+                prompt = f"{hist}QUESTION: {question}\n\nAnswer:"
+                return self.llm.generate_stream(prompt, system=GENERAL_SYSTEM_PROMPT)
+            return self._general_answer(question, chat_history, no_retrieval=True)
+        return self._refuse(question, refusal, stream)
 
     def _refuse(self, question: str, message: str, stream: bool):
         """
@@ -367,10 +422,14 @@ class RAGPipeline:
 
     def last_was_no_retrieval(self) -> bool:
         """
-        True if the most recent query retrieved nothing and was refused without
-        calling the LLM. Lets streaming callers (the UI) flag the turn as ungrounded.
+        True if the most recent query retrieved nothing. Lets streaming callers
+        (the UI) flag the turn as ungrounded.
         """
         return getattr(self, "_last_no_retrieval", False)
+
+    def last_was_general_fallback(self) -> bool:
+        """True if the most recent query answered from general knowledge (labelled)."""
+        return getattr(self, "_last_general_fallback", False)
 
     # File management
 

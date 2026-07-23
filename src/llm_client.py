@@ -113,6 +113,16 @@ QUESTION: {question}
 
 Answer based only on the context above:"""
 
+# Used by the general-knowledge fallback: the question could NOT be answered from
+# the user's documents, so answer from parametric memory — but LABEL it clearly so
+# a general answer is never mistaken for a grounded one.
+GENERAL_SYSTEM_PROMPT = """You are a helpful assistant. The user's question could NOT be answered from their uploaded documents.
+
+Answer from your own general knowledge. Begin your reply with EXACTLY this line, on its own:
+⚠️ Not in your documents — from general knowledge:
+
+Then give a concise, accurate answer. If you genuinely do not know, say so plainly. Never claim or imply this information came from the user's documents."""
+
 
 # Shared prompt/budget logic (backend-agnostic)
 
@@ -257,6 +267,21 @@ class _RagPromptMixin:
         """Budget-aware prompt string. Thin wrapper over assemble()."""
         return self.assemble(question, retrieved_chunks, chat_history).prompt
 
+    def generate_general(
+        self,
+        question: str,
+        chat_history: Optional[List[Dict]] = None,
+    ) -> str:
+        """
+        Answer from the model's own general knowledge (NO document context), using
+        GENERAL_SYSTEM_PROMPT so the reply self-labels as not-from-your-documents.
+        Backend-agnostic: relies on generate()'s `system` override, which both
+        OllamaClient and LlamaCppClient implement.
+        """
+        hist = self._format_history(chat_history)
+        prompt = f"{hist}QUESTION: {question}\n\nAnswer:"
+        return self.generate(prompt, system=GENERAL_SYSTEM_PROMPT)
+
 
 # OllamaClient
 
@@ -332,15 +357,17 @@ class OllamaClient(_RagPromptMixin):
         self,
         prompt: str,
         stream: bool = False,
+        system: str = None,
     ) -> str:
         """
         Non-streaming generation using /api/generate.
-        Returns the full response text.
+        Returns the full response text. `system` overrides the default system
+        prompt (used by the general-knowledge fallback).
         """
         payload = {
             "model":  self.model,
             "prompt": prompt,
-            "system": SYSTEM_PROMPT,
+            "system": system if system is not None else SYSTEM_PROMPT,
             "stream": False,
             "options": {
                 "temperature": self.temperature,
@@ -373,7 +400,7 @@ class OllamaClient(_RagPromptMixin):
         except requests.exceptions.HTTPError as e:
             raise RuntimeError(f"Ollama HTTP error: {e}")
 
-    def generate_stream(self, prompt: str) -> Iterator[str]:
+    def generate_stream(self, prompt: str, system: str = None) -> Iterator[str]:
         """
         Streaming generation — yields text tokens as they arrive.
         Use this in Streamlit with st.write_stream() for a typing effect.
@@ -381,7 +408,7 @@ class OllamaClient(_RagPromptMixin):
         payload = {
             "model":  self.model,
             "prompt": prompt,
-            "system": SYSTEM_PROMPT,
+            "system": system if system is not None else SYSTEM_PROMPT,
             "stream": True,
             "options": {
                 "temperature": self.temperature,
@@ -544,19 +571,20 @@ class LlamaCppClient(_RagPromptMixin):
 
     # Core generation
 
-    def _messages(self, prompt: str) -> List[Dict]:
+    def _messages(self, prompt: str, system: str = None) -> List[Dict]:
         # create_chat_completion applies the GGUF's own chat template, matching
         # how Ollama wraps `system` + `prompt`.
         return [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system if system is not None else SYSTEM_PROMPT},
             {"role": "user",   "content": prompt},
         ]
 
-    def generate(self, prompt: str, stream: bool = False) -> str:
-        """Non-streaming generation. Returns the full response text."""
+    def generate(self, prompt: str, stream: bool = False, system: str = None) -> str:
+        """Non-streaming generation. Returns the full response text. `system`
+        overrides the default system prompt (used by the general-knowledge fallback)."""
         llama = self._get_llama()
         out = llama.create_chat_completion(
-            messages=self._messages(prompt),
+            messages=self._messages(prompt, system),
             temperature=self.temperature,
             top_p=self.top_p,
             max_tokens=self.num_predict,
@@ -564,7 +592,7 @@ class LlamaCppClient(_RagPromptMixin):
         )
         return (out["choices"][0]["message"]["content"] or "").strip()
 
-    def generate_stream(self, prompt: str) -> Iterator[str]:
+    def generate_stream(self, prompt: str, system: str = None) -> Iterator[str]:
         """Streaming generation — yields text tokens as they arrive."""
         try:
             llama = self._get_llama()
@@ -574,7 +602,7 @@ class LlamaCppClient(_RagPromptMixin):
             yield f"\n\n❌ {e}"
             return
         for chunk in llama.create_chat_completion(
-            messages=self._messages(prompt),
+            messages=self._messages(prompt, system),
             temperature=self.temperature,
             top_p=self.top_p,
             max_tokens=self.num_predict,

@@ -1,5 +1,6 @@
 [theme]
 base = "dark"
+primaryColor = "#33ff33"          # phosphor green accent (toggles, focus, sliders)
 backgroundColor = "#050a05"
 secondaryBackgroundColor = "#070e07"
 textColor = "#33ff33"

@@ -177,6 +177,14 @@ HYBRID_RETRIEVAL = _env_bool("HYBRID_RETRIEVAL", True)   # master flag; False = 
 # a follow-up signal — standalone questions are never rewritten, so they pay no
 # latency. Set false to fall back to raw-query retrieval.
 QUERY_REWRITE = _env_bool("QUERY_REWRITE", True)
+
+# General-knowledge fallback.
+#
+# When the documents can't answer — nothing indexed, nothing retrieved, or the
+# grounded answer abstains — fall back to the LLM's own general knowledge, clearly
+# LABELLED as not-from-your-documents (see GENERAL_SYSTEM_PROMPT). Grounded answers
+# with sufficient context are untouched. Set False for strict document-only mode.
+GENERAL_FALLBACK = _env_bool("GENERAL_FALLBACK", True)
 RERANK           = _env_bool("RERANK", True)            # rerank fused candidates
 RERANK_MODEL     = os.getenv("RERANK_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
 # Same reranker, ONNX build — used by the fastembed backend (no PyTorch).

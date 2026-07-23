@@ -182,27 +182,27 @@ def _render_sidebar():
                 unsafe_allow_html=True,
             )
             for finfo in file_list:
-                col1, col2 = st.columns([4, 1])
+                col1, col2 = st.columns([3, 1])
                 with col1:
                     st.markdown(_file_row_html(finfo), unsafe_allow_html=True)
                 with col2:
-                    if st.button("DEL", key=f"del_{finfo['name']}", help=f"Delete {finfo['name']}"):
+                    if st.button("DEL", key=f"del_{finfo['name']}",
+                                 help=f"Delete {finfo['name']}", use_container_width=True):
                         pipeline.delete_file(finfo["name"])
                         st.toast(f"DELETED: {finfo['name']}")
                         st.rerun()
 
         st.write("")
-        col_a, col_b = st.columns(2)
-        with col_a:
-            if st.button(">> REINDEX", use_container_width=True):
-                with st.spinner("REINDEXING..."):
-                    added, _ = pipeline.reindex_all()
-                st.toast(f"INDEXED {added} CHUNKS")
-                st.rerun()
-        with col_b:
-            if st.button(">> CLEAR LOG", use_container_width=True):
-                st.session_state["chat_history"] = []
-                st.rerun()
+        # Full-width, stacked — side-by-side columns were too narrow and clipped
+        # the labels against the sidebar edge.
+        if st.button(">> REINDEX", use_container_width=True):
+            with st.spinner("REINDEXING..."):
+                added, _ = pipeline.reindex_all()
+            st.toast(f"INDEXED {added} CHUNKS")
+            st.rerun()
+        if st.button(">> CLEAR LOG", use_container_width=True):
+            st.session_state["chat_history"] = []
+            st.rerun()
 
         st.write("")
         st.markdown(
@@ -369,9 +369,12 @@ def render_app():
     with st.form(key="input_form", clear_on_submit=True):
         col_q, col_btn = st.columns([5, 1])
         with col_q:
+            # Label collapsed (the prompt lives in the placeholder) so the SEND
+            # button lines up with the input box instead of the label row.
             question = st.text_input(
                 "C:\\QUERY>",
-                placeholder="enter query and press [SEND] ...",
+                placeholder="C:\\QUERY> enter query and press [SEND] ...",
+                label_visibility="collapsed",
             )
         with col_btn:
             submitted = st.form_submit_button("SEND >>", use_container_width=True, type="primary")

@@ -288,27 +288,73 @@ section[data-testid="stSidebar"] * { color: var(--phosphor) !important; }
     letter-spacing: 0.1em !important;
 }
 
-.stButton > button {
+/* Buttons — target normal buttons AND form-submit buttons. The SEND button is a
+   form-submit (.stFormSubmitButton / stBaseButton-*FormSubmit), so without these
+   extra selectors it never got the CRT styling and kept Streamlit's default
+   primary colour. nowrap + min-height stop labels wrapping to 2 lines (the
+   "collapsing" sidebar buttons). */
+.stButton > button,
+.stFormSubmitButton > button,
+div[data-testid="stFormSubmitButton"] button,
+button[data-testid^="stBaseButton"] {
     background: var(--bg-inset) !important;
     border: 1px solid var(--border-crt) !important;
     border-radius: 0 !important;
     color: var(--phosphor) !important;
     font-family: var(--font-mono) !important;
     font-size: 0.78rem !important;
-    letter-spacing: 0.08em !important;
+    letter-spacing: 0.06em !important;
     text-transform: uppercase !important;
+    white-space: nowrap !important;
+    min-height: 38px !important;
     transition: all 0.1s !important;
 }
-.stButton > button:hover {
+.stButton > button:hover,
+.stFormSubmitButton > button:hover,
+div[data-testid="stFormSubmitButton"] button:hover,
+button[data-testid^="stBaseButton"]:hover {
     background: var(--border-crt) !important;
     color: var(--phosphor-glow) !important;
+    border-color: var(--phosphor) !important;
     text-shadow: 0 0 6px var(--phosphor-glow) !important;
 }
-.stButton > button[kind="primary"] {
+/* Primary = the SEND action: phosphor border + inner glow so it reads as the
+   main action while staying on-theme. */
+.stButton > button[kind="primary"],
+.stFormSubmitButton > button[kind="primary"],
+button[data-testid="stBaseButton-primary"],
+button[data-testid="stBaseButton-primaryFormSubmit"] {
     border-color: var(--phosphor) !important;
-    color: var(--phosphor) !important;
+    color: var(--phosphor-glow) !important;
+    box-shadow: inset 0 0 10px rgba(0,255,0,0.18) !important;
     text-shadow: 0 0 6px rgba(0,255,0,0.5) !important;
 }
+/* Bottom-align the query row so the SEND button lines up with the input box. */
+div[data-testid="stForm"] div[data-testid="stHorizontalBlock"] {
+    align-items: flex-end !important;
+    gap: 8px !important;
+}
+
+/* Sidebar buttons live in narrow columns. Shrink padding/label and let them
+   shrink to the column so they never clip or spill past the sidebar edge. */
+section[data-testid="stSidebar"] .stButton > button,
+section[data-testid="stSidebar"] button[data-testid^="stBaseButton"] {
+    padding: 6px 8px !important;
+    font-size: 0.70rem !important;
+    letter-spacing: 0.01em !important;
+    min-width: 0 !important;
+    width: 100% !important;
+}
+
+/* Slider: recolour from Streamlit's default red to phosphor green (thumb + track). */
+div[data-baseweb="slider"] div[role="slider"] {
+    background-color: var(--phosphor) !important;
+    box-shadow: 0 0 6px var(--phosphor-glow) !important;
+    border-color: var(--phosphor) !important;
+}
+div[data-baseweb="slider"] > div > div > div { background: var(--phosphor-dim) !important; }
+div[data-baseweb="slider"] > div > div    { background: var(--border-crt) !important; }
+.stSlider [data-testid="stThumbValue"] { color: var(--phosphor) !important; }
 
 .stFileUploader {
     background: var(--bg-inset) !important;

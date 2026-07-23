@@ -1,0 +1,74 @@
+name: build-desktop
+
+# Builds the double-click QwenRAG bundles for Windows + Linux.
+# PyInstaller is not a cross-compiler, so each OS builds on its own runner.
+# Trigger manually, or on a version tag to attach artifacts to a release.
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: QwenRAG-linux-x86_64
+          - os: windows-latest
+            artifact: QwenRAG-windows-x64
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"   # settled Python with prebuilt wheels for every dep
+
+      # Linux GUI backend for pywebview (webkit2gtk). Not needed to freeze, but
+      # keeps a smoke-run possible on the runner.
+      - name: Linux system deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgirepository1.0-dev gir1.2-webkit2-4.1 python3-gi
+
+      - name: Install build + runtime deps (no torch)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-bundle.txt
+          pip install pyinstaller huggingface_hub
+          pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+
+      # The 2.1 GB GGUF dominates fetch time — cache it across runs.
+      - name: Cache bundled models
+        uses: actions/cache@v4
+        with:
+          path: resources
+          key: resources-${{ hashFiles('packaging/fetch_resources.py') }}
+
+      - name: Fetch offline models (GGUF + ONNX + tokenizer)
+        run: python packaging/fetch_resources.py
+
+      - name: Freeze with PyInstaller
+        run: pyinstaller --noconfirm packaging/qwenrag.spec
+
+      # Package the onedir. Linux → tarball; Windows → zip. (AppImage / Inno Setup
+      # installer are the next polish step — see packaging/PACKAGING.md.)
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        run: tar -C dist -czf ${{ matrix.artifact }}.tar.gz QwenRAG
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        run: Compress-Archive -Path dist/QwenRAG -DestinationPath ${{ matrix.artifact }}.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            ${{ matrix.artifact }}.tar.gz
+            ${{ matrix.artifact }}.zip
+          if-no-files-found: ignore

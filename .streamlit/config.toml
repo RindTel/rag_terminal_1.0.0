@@ -8,7 +8,9 @@ font = "monospace"
 [server]
 headless = true
 enableCORS = false
-port = 8501
+# NOTE: no static `port` here on purpose. The desktop launcher (desktop.py) binds
+# a dynamic free port via flag_options; a fixed port here conflicts with Streamlit's
+# developmentMode check in the frozen build. Dev `streamlit run` uses the default 8501.
 
 [browser]
 gatherUsageStats = false

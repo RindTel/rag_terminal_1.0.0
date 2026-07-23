@@ -17,7 +17,7 @@ from typing import List, Dict, Optional, Tuple
 import config
 from .document_processor import DocumentProcessor
 from .vector_store import VectorStore
-from .llm_client import OllamaClient
+from .llm_client import create_llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -131,7 +131,10 @@ class RAGPipeline:
             tokenizer_provider=self.vector_store.get_tokenizer,
             max_seq_provider=self.vector_store.get_max_seq_length,
         )
-        self.llm = OllamaClient(
+        # Backend chosen by config.LLM_BACKEND: OllamaClient in dev, LlamaCppClient
+        # in the packaged app. The model arg is honoured by the Ollama backend and
+        # ignored by llama.cpp (which uses the bundled GGUF path instead).
+        self.llm = create_llm_client(
             model=llm_model if llm_model is not None else config.OLLAMA_MODEL,
         )
 

@@ -25,8 +25,9 @@ import config
 
 logger = logging.getLogger(__name__)
 
+from .embeddings import create_embedding_backend
+
 _faiss = None
-_SentenceTransformer = None
 
 def _load_faiss():
     global _faiss
@@ -40,19 +41,6 @@ def _load_faiss():
                 "Install with:  pip install faiss-cpu"
             )
     return _faiss
-
-def _load_sentence_transformers():
-    global _SentenceTransformer
-    if _SentenceTransformer is None:
-        try:
-            from sentence_transformers import SentenceTransformer
-            _SentenceTransformer = SentenceTransformer
-        except ImportError:
-            raise ImportError(
-                "sentence-transformers is required.\n"
-                "Install with:  pip install sentence-transformers"
-            )
-    return _SentenceTransformer
 
 # VectorStore class
 
@@ -88,7 +76,7 @@ class VectorStore:
         self.model_name    = self._configured_model
         self.model_mismatch = False
 
-        self._model     = None
+        self._backend   = None
         self._index     = None
         self._chunks: List[dict] = []
 
@@ -101,54 +89,38 @@ class VectorStore:
 
     # Embedding 
 
-    def _get_model(self):
-        """Load (or reuse) the embedding model."""
-        if self._model is None:
-            SentenceTransformer = _load_sentence_transformers()
-            logger.info(f"Loading embedding model '{self.model_name}' (CPU) ...")
-            # CPU on purpose: the GPU is occupied by the local Ollama model (a
-            # 4 GB card is nearly full with Qwen), and putting the encoder there
-            # too causes CUDA OOM. all-MiniLM is tiny and fast on CPU; keeping it
-            # off the GPU leaves that memory for generation, the real bottleneck.
-            self._model = SentenceTransformer(self.model_name, device="cpu")
-            logger.info("Embedding model ready.")
-        return self._model
+    def _get_backend(self):
+        """Load (or reuse) the embedding backend (sentence-transformers or fastembed)."""
+        if self._backend is None:
+            self._backend = create_embedding_backend(self.model_name)
+        return self._backend
 
     def get_tokenizer(self):
         """
-        The embedding model's own tokenizer. The chunker must size chunks with
-        THIS tokenizer — anything else is a guess, and a wrong guess is silent
-        truncation at encode time.
+        The embedding model's own fast tokenizer. The chunker must size chunks
+        with THIS tokenizer — anything else is a guess, and a wrong guess is
+        silent truncation at encode time.
         """
-        return self._get_model().tokenizer
+        return self._get_backend().get_tokenizer()
 
     def get_max_seq_length(self) -> int:
         """
         Hard token ceiling of the encoder. Text beyond this is silently dropped
-        by model.encode() — it does not raise, it just stops looking.
+        at encode time — the encoder does not raise, it just stops looking.
         """
-        return self._get_model().max_seq_length
+        return self._get_backend().get_max_seq_length()
 
     def embed_texts(self, texts: List[str]) -> np.ndarray:
         """
         Convert a list of strings into embedding vectors.
         Returns shape (N, embedding_dim) float32 numpy array.
         """
-        model = self._get_model()
-
-        # Defence in depth. encode() truncates past max_seq_length WITHOUT
+        # Defence in depth. Encoding truncates past max_seq_length WITHOUT
         # warning, which is how 66% of the corpus went unembedded. If oversized
         # text ever reaches this point again, it says so out loud.
         self._warn_if_truncating(texts)
 
-        embeddings = model.encode(
-            texts,
-            batch_size=32,
-            show_progress_bar=False,
-            convert_to_numpy=True,
-            normalize_embeddings=True,
-        )
-        return embeddings.astype("float32")
+        return self._get_backend().encode(texts)
 
     def _warn_if_truncating(self, texts: List[str]):
         """Log a WARNING for any text the encoder will silently cut short."""
@@ -325,7 +297,7 @@ class VectorStore:
                 self._configured_model, self.model_name,
             )
             self.model_name = self._configured_model
-            self._model = None          # force a reload of the new encoder
+            self._backend = None        # force a reload of the new encoder
 
         self.model_mismatch = False
         logger.info("Vector store cleared.")

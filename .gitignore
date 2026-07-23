@@ -19,6 +19,9 @@ env/
 uploads/
 vectorstore/
 
+# Bundled models for the desktop build (~2.5 GB — fetched by packaging/fetch_resources.py)
+resources/
+
 # Streamlit
 .streamlit/secrets.toml
 

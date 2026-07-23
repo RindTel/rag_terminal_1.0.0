@@ -34,7 +34,7 @@ def _tokenize(text: str) -> List[str]:
 # Lazy singletons — loaded once, reused. The cross-encoder is ~80 MB; loading it
 # per query would dominate latency.
 _BM25 = None
-_CrossEncoder = None
+_RERANKER = None
 
 
 def _load_bm25_class():
@@ -52,19 +52,32 @@ def _load_bm25_class():
     return _BM25
 
 
-def _load_reranker(model_name: str):
-    global _CrossEncoder
-    if _CrossEncoder is None:
+def _rerank_scores(query: str, texts: List[str]) -> List[float]:
+    """
+    Cross-encoder relevance scores for (query, text) pairs, higher = more relevant.
+
+    Routes to the same MiniLM cross-encoder via whichever backend config selects:
+    sentence-transformers (PyTorch, dev) or fastembed (ONNX, the bundle). Loaded
+    once and cached — the CPU load dominates latency otherwise.
+    """
+    global _RERANKER
+    if config.EMBED_BACKEND.lower() == "fastembed":
+        if _RERANKER is None:
+            from fastembed.rerank.cross_encoder import TextCrossEncoder
+            from .embeddings import fastembed_kwargs
+            logger.info("Loading reranker '%s' (ONNX, fastembed) ...", config.RERANK_MODEL_FASTEMBED)
+            _RERANKER = TextCrossEncoder(model_name=config.RERANK_MODEL_FASTEMBED, **fastembed_kwargs())
+            logger.info("Reranker ready.")
+        return [float(s) for s in _RERANKER.rerank(query, texts)]
+
+    if _RERANKER is None:
         from sentence_transformers import CrossEncoder
-        logger.info("Loading reranker '%s' (CPU) ...", model_name)
-        # Pin to CPU on purpose. The local Ollama model already occupies the GPU
-        # (a 4 GB card is nearly full with Qwen), so putting the cross-encoder on
-        # GPU too triggers CUDA OOM that then breaks embedding. The reranker is
-        # tiny (22M params) and fast enough on CPU; keeping it off the GPU leaves
-        # that memory for generation, which is the real bottleneck.
-        _CrossEncoder = CrossEncoder(model_name, device="cpu")
+        logger.info("Loading reranker '%s' (CPU, sentence-transformers) ...", config.RERANK_MODEL)
+        # CPU on purpose: the local LLM occupies the GPU; the cross-encoder is tiny
+        # and fast on CPU, and keeping it off-GPU avoids CUDA OOM.
+        _RERANKER = CrossEncoder(config.RERANK_MODEL, device="cpu")
         logger.info("Reranker ready.")
-    return _CrossEncoder
+    return [float(s) for s in _RERANKER.predict([(query, t) for t in texts])]
 
 
 class HybridRetriever:
@@ -175,8 +188,7 @@ class HybridRetriever:
         """
         if not chunks:
             return []
-        reranker = _load_reranker(config.RERANK_MODEL)
-        scores = reranker.predict([(query, c["text"]) for c in chunks])
+        scores = _rerank_scores(query, [c["text"] for c in chunks])
 
         scored = sorted(
             zip(chunks, (float(s) for s in scores)),

@@ -33,6 +33,23 @@ requests>=2.31.0
 numpy>=1.24.0
 
 # ──────────────────────────────────────────────
+# Packaged desktop app (the bundle) — NOT needed for dev
+# ──────────────────────────────────────────────
+# These power the self-contained, double-click build. In dev the app still uses
+# Ollama + sentence-transformers (above); config auto-selects these only when
+# frozen (LLM_BACKEND=llamacpp, EMBED_BACKEND=fastembed).
+#
+# llama-cpp-python        # In-process GGUF inference — replaces the Ollama daemon
+# fastembed               # ONNX embeddings + reranker — replaces PyTorch (~2 GB smaller)
+# pywebview               # Native window wrapping the local Streamlit server
+platformdirs>=4.0.0       # Per-user writable data dir (uploads/index) when installed
+
+# ──────────────────────────────────────────────
+# Build tooling (CI only — produces the Windows/Linux artifacts)
+# ──────────────────────────────────────────────
+# pyinstaller>=6.0.0      # Freezes the app into a per-OS onedir bundle
+
+# ──────────────────────────────────────────────
 # Development
 # ──────────────────────────────────────────────
 pytest>=8.0.0            # Test suite:  python -m pytest tests/ -v

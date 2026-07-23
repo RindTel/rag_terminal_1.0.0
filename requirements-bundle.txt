@@ -1,0 +1,19 @@
+# ──────────────────────────────────────────────
+# QwenRAG — packaged desktop app runtime deps (the bundle)
+# ──────────────────────────────────────────────
+# Deliberately NO torch / sentence-transformers / transformers: the frozen app
+# uses the ONNX fastembed backend, which is ~2 GB smaller. This file is what CI
+# installs before PyInstaller. Dev still uses requirements.txt (Ollama + torch).
+#
+# llama-cpp-python is installed separately in CI from the prebuilt CPU wheel index
+# (see .github/workflows/build.yml) to avoid a source build.
+
+streamlit>=1.32.0
+pymupdf>=1.23.0
+faiss-cpu>=1.7.4
+rank_bm25>=0.2.2
+requests>=2.31.0
+numpy>=1.24.0
+fastembed>=0.4.0        # ONNX embedder + reranker (pulls onnxruntime, tokenizers)
+pywebview>=5.0          # native window around the local Streamlit server
+platformdirs>=4.0.0     # per-user writable data dir

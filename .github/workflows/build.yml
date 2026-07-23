@@ -55,11 +55,28 @@ jobs:
       - name: Freeze with PyInstaller
         run: pyinstaller --noconfirm packaging/qwenrag.spec
 
-      # Package the onedir. Linux → tarball; Windows → zip. (AppImage / Inno Setup
-      # installer are the next polish step — see packaging/PACKAGING.md.)
+      # Headless end-to-end gate: run one real RAG query through the FROZEN bundle
+      # (chunker → fastembed → llama.cpp) and fail the build if it doesn't answer.
+      # No browser/window needed — see desktop.py `_selftest`.
+      - name: Self-test the frozen bundle (Linux)
+        if: runner.os == 'Linux'
+        env:
+          QWENRAG_SELFTEST: "1"
+        run: ./dist/QwenRAG/QwenRAG
+
+      - name: Self-test the frozen bundle (Windows)
+        if: runner.os == 'Windows'
+        env:
+          QWENRAG_SELFTEST: "1"
+        run: ./dist/QwenRAG/QwenRAG.exe
+
+      # Package. Linux → AppImage (double-click) + tarball; Windows → zip.
+      # (Inno Setup installer for Windows is the next polish step — see PACKAGING.md.)
       - name: Package (Linux)
         if: runner.os == 'Linux'
-        run: tar -C dist -czf ${{ matrix.artifact }}.tar.gz QwenRAG
+        run: |
+          bash packaging/build_appimage.sh "${{ matrix.artifact }}.AppImage"
+          tar -C dist -czf ${{ matrix.artifact }}.tar.gz QwenRAG
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
@@ -69,6 +86,7 @@ jobs:
         with:
           name: ${{ matrix.artifact }}
           path: |
+            ${{ matrix.artifact }}.AppImage
             ${{ matrix.artifact }}.tar.gz
             ${{ matrix.artifact }}.zip
           if-no-files-found: ignore

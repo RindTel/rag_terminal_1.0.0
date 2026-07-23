@@ -22,6 +22,10 @@ vectorstore/
 # Bundled models for the desktop build (~2.5 GB — fetched by packaging/fetch_resources.py)
 resources/
 
+# Desktop build artifacts
+AppDir/
+*.AppImage
+
 # Streamlit
 .streamlit/secrets.toml
 

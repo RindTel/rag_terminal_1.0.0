@@ -88,7 +88,43 @@ def _spawn_worker(port: int) -> subprocess.Popen:
     return subprocess.Popen(argv, env=env)
 
 
+def _selftest() -> int:
+    """
+    Headless end-to-end check of the bundled stack: ingest a tiny doc, run one RAG
+    query, and confirm a grounded answer comes back. Exercises the FULL pipeline
+    (chunker → fastembed → llama.cpp) with no browser and no window, so a frozen
+    build can be smoke-tested on a headless CI runner / clean machine.
+
+    Run with:  QWENRAG_SELFTEST=1 ./QwenRAG      (exit 0 = pass, 1 = fail)
+    """
+    import tempfile
+    import pathlib
+    from src.rag_pipeline import RAGPipeline
+
+    d = pathlib.Path(tempfile.mkdtemp(prefix="qwenrag-selftest-"))
+    (up := d / "uploads").mkdir()
+    (vs := d / "vs").mkdir()
+    (up / "selftest.txt").write_text(
+        "Recharts is a chart library built with SVG. "
+        "The API rate limit returns HTTP 429 Too Many Requests when exceeded."
+    )
+    pipe = RAGPipeline(uploads_dir=str(up), vectorstore_dir=str(vs))
+    pipe.ingest_files([str(up / "selftest.txt")])
+    result = pipe.query("What is Recharts built with?")
+
+    answer = (result.answer or "").strip()
+    ok = bool(answer) and result.grounded and "svg" in answer.lower()
+    print(f"[selftest] chunks={pipe.chunk_count()} grounded={result.grounded}")
+    print(f"[selftest] answer: {answer[:200]!r}")
+    print("[selftest] " + ("PASS" if ok else "FAIL"))
+    return 0 if ok else 1
+
+
 def main() -> None:
+    # Headless self-test role (CI / clean-machine smoke test): no server, no window.
+    if os.environ.get("QWENRAG_SELFTEST") == "1":
+        sys.exit(_selftest())
+
     # Child role: just be the server.
     if os.environ.get("QWENRAG_STREAMLIT_WORKER") == "1":
         _run_streamlit_worker(int(os.environ["QWENRAG_PORT"]))

@@ -16,12 +16,26 @@ Expected artifact size: **~3.2–3.8 GB** per OS (model-dominated).
 
 CI runs all of this: `.github/workflows/build.yml` (Windows + Linux, Python 3.12).
 
-## Installers (polish — not required for a working bundle)
+## Self-test gate
 
-- **Windows** → wrap `dist/QwenRAG/` in an **Inno Setup** or **NSIS** installer for a
-  Start-menu shortcut. A plain zip also works (user extracts + runs `QwenRAG.exe`).
-- **Linux** → **AppImage** is the double-click equivalent (needs `webkit2gtk` on the
-  host for pywebview). A tarball works too: extract + run `./QwenRAG`.
+The CI build runs the frozen bundle headlessly before packaging:
+
+    QWENRAG_SELFTEST=1 ./dist/QwenRAG/QwenRAG      # exit 0 = pass
+
+This ingests a tiny doc and runs one real RAG query through the full frozen stack
+(chunker → fastembed → llama.cpp) — no browser, no window. A broken bundle fails
+the build here instead of shipping. Validated on Linux with the network cut
+(`unshare -rn`), a neutral cwd, and the bundled Python — proving self-containment.
+
+## Installers
+
+- **Linux** → `packaging/build_appimage.sh` produces a double-clickable
+  `*.AppImage` from the onedir (CI calls it). Needs `webkit2gtk` on the host for
+  pywebview. A tarball is also uploaded: extract + run `./QwenRAG`. Replace the
+  placeholder icon at `packaging/qwenrag.png` with a real one.
+- **Windows** (polish — not yet scripted) → wrap `dist/QwenRAG/` in an **Inno Setup**
+  or **NSIS** installer for a Start-menu shortcut. The zip works today (extract +
+  run `QwenRAG.exe`).
 
 ## Code signing — DECISION: ship unsigned (this round)
 
